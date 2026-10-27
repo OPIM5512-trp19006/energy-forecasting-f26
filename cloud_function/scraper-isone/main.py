@@ -138,7 +138,7 @@ def upsert(bucket, key, new, keys, date_cols):
     return len(both)
 
 
-def run_once(dry_run: bool = False) -> dict:
+def run_once(dry_run: bool = False, five_min_days: int = 2) -> dict:
     if not ISO_USER or not ISO_PASS:
         return {"status": "skipped", "message": "No ISO Express account yet: add ISO_NE_USERNAME and ISO_NE_PASSWORD as "
                 "repository secrets on your fork, then re-run the 'Deploy scraper-isone' workflow."}
@@ -147,7 +147,9 @@ def run_once(dry_run: bool = False) -> dict:
     metered_days = []
     for back in range(DAYS_BACK, -1, -1):
         metered_days.append(today - timedelta(days=back))
-    five_days = [today - timedelta(days=1), today]
+    five_days = []
+    for back in range(max(five_min_days, 2) - 1, -1, -1):      # usually yesterday and today; more to backfill
+        five_days.append(today - timedelta(days=back))
 
     metered, raw_m = metered_hourly(metered_days)
     five, raw_f = five_minute_hourly(five_days)
@@ -185,7 +187,7 @@ def run_once(dry_run: bool = False) -> dict:
 def scrape_isone_http(request):
     try:
         body = request.get_json(silent=True) or {}
-        result = run_once(dry_run=bool(body.get("dry_run", False)))
+        result = run_once(dry_run=bool(body.get("dry_run", False)), five_min_days=int(body.get("five_min_days", 2)))
         logging.info(json.dumps(result)[:500])
         return (json.dumps(result), 200, {"Content-Type": "application/json"})
     except Exception as e:
