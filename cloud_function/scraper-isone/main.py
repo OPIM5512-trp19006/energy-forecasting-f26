@@ -91,15 +91,37 @@ def five_minute_hourly(days) -> tuple:
     return g, raw
 
 
-def isone_forecast() -> tuple:
-    js = get_json("reliabilityregionloadforecast/current")
+def isone_forecast(days) -> tuple:
+    # ".../current" is only the newest forecast ISO publishes, which is always for the day AFTER tomorrow. So also ask
+    # for today and tomorrow by date: those carry ISO's latest update for the next 24 hours. "/all" (every version of
+    # that day) is tried first; a day that fails is skipped, so one missing version never stops the load scrape.
+    paths = ["reliabilityregionloadforecast/current"]
+    for day in days:
+        paths.append(f"reliabilityregionloadforecast/day/{day:%Y%m%d}/all")
+        paths.append(f"reliabilityregionloadforecast/day/{day:%Y%m%d}")
     rows = []
-    for rec in as_list((js.get("ReliabilityRegionLoadForecasts") or {}).get("ReliabilityRegionLoadForecast")):
-        if rec.get("ReliabilityRegion") == ZONE_NAME:
-            rows.append({"issued_at_utc": pd.Timestamp(rec["CreationDate"]).tz_convert("UTC"),
-                         "target_hour_utc": pd.Timestamp(rec["BeginDate"]).tz_convert("UTC"),
-                         "isone_forecast_mw": rec.get("LoadMw")})
-    return pd.DataFrame(rows, columns=["issued_at_utc", "target_hour_utc", "isone_forecast_mw"]), js
+    raw = {}
+    done_days = set()
+    for path in paths:
+        day_part = path.split("/")[2] if "/day/" in path else "current"
+        if day_part in done_days:
+            continue
+        try:
+            js = get_json(path)
+        except Exception as err:
+            raw[path] = {"error": str(err)[:300]}
+            continue
+        raw[path] = js
+        found = 0
+        for rec in as_list((js.get("ReliabilityRegionLoadForecasts") or {}).get("ReliabilityRegionLoadForecast")):
+            if rec.get("ReliabilityRegion") == ZONE_NAME:
+                rows.append({"issued_at_utc": pd.Timestamp(rec["CreationDate"]).tz_convert("UTC"),
+                             "target_hour_utc": pd.Timestamp(rec["BeginDate"]).tz_convert("UTC"),
+                             "isone_forecast_mw": rec.get("LoadMw")})
+                found += 1
+        if found > 0:
+            done_days.add(day_part)
+    return pd.DataFrame(rows, columns=["issued_at_utc", "target_hour_utc", "isone_forecast_mw"]), raw
 
 
 def upsert(bucket, key, new, keys, date_cols):
@@ -129,7 +151,8 @@ def run_once(dry_run: bool = False) -> dict:
 
     metered, raw_m = metered_hourly(metered_days)
     five, raw_f = five_minute_hourly(five_days)
-    fcst, raw_fc = isone_forecast()
+    fcst, raw_fc = isone_forecast([today, today + timedelta(days=1)])
+    fcst = fcst.drop_duplicates(["issued_at_utc", "target_hour_utc"], keep="last")
     now_iso = now.isoformat()
     metered["scraped_at_utc"] = now_iso
     five["scraped_at_utc"] = now_iso
@@ -139,7 +162,9 @@ def run_once(dry_run: bool = False) -> dict:
                "five_min_complete_hours": int(len(five)),
                "five_min_latest_hour_utc": five["hour_utc"].max().isoformat() if len(five) else None,
                "isone_forecast_rows": int(len(fcst)),
-               "isone_forecast_issued_at_utc": fcst["issued_at_utc"].max().isoformat() if len(fcst) else None}
+               "isone_forecast_issued_at_utc": fcst["issued_at_utc"].max().isoformat() if len(fcst) else None,
+               "isone_forecast_first_target_utc": fcst["target_hour_utc"].min().isoformat() if len(fcst) else None,
+               "isone_forecast_paths_ok": [p for p in raw_fc if "error" not in raw_fc[p]]}
     if dry_run:
         summary["dry_run"] = True
         return summary
