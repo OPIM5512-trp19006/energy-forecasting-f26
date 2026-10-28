@@ -4,6 +4,12 @@ Hourly weather + electricity-load pipeline on Google Cloud, and a model that for
 for the next 24 hours, every hour**. Built for Dr. Dave Wanik's courses at UConn (OPIM 5512 Applied Data Science, Lab 5
 onward). Every student forks this repo into their **own** energy project on Google Cloud.
 
+## How it fits together
+
+![What runs in your energy project](how_it_works.svg)
+
+Train once in Colab on Dr. Dave's history file (Bradley weather + Connecticut load, January 2023 to October 2026), upload the model, and from then on four Cloud Functions in your own project run every hour without you.
+
 ## What runs every hour (Eastern time)
 
 | Minute | Cloud Function | Source | Writes to `gs://<bucket>/energy/` |

@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#44506a"/>
+    </marker>
+    <marker id="arrowblue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f6feb"/>
+    </marker>
+    <style>
+      .src { fill:#f1f3f8; stroke:#b9c0cc; }
+      .fn { fill:#0A1F44; stroke:#0A1F44; }
+      .file { fill:#fff6dc; stroke:#F2A900; }
+      .dave { fill:#e8f5ee; stroke:#10AC84; }
+      .once { fill:#ffffff; stroke:#8E44AD; stroke-dasharray:5 4; }
+      .t { fill:#1c1c1e; }
+      .w { fill:#ffffff; }
+      .m { fill:#6b7280; font-size:12px; }
+      .h { font-size:14px; font-weight:700; fill:#0A1F44; }
+      .b { font-weight:700; }
+      .line { stroke:#44506a; stroke-width:1.6; fill:none; marker-end:url(#arrow); }
+      .read { stroke:#1f6feb; stroke-width:1.6; fill:none; stroke-dasharray:6 4; marker-end:url(#arrowblue); }
+    </style>
+  </defs>
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <text x="20" y="32" font-size="22" font-weight="700" fill="#0A1F44">What runs in your energy project</text>
+  <text x="20" y="54" class="m">Train once in Colab (bottom row). Then four Cloud Functions run every hour on their own, and Dr. Dave's collector scores everyone.</text>
+
+  <text x="20" y="88" class="h">Where the data comes from</text>
+  <text x="320" y="88" class="h">Your Cloud Functions (every hour)</text>
+  <text x="640" y="88" class="h">Your bucket</text>
+  <text x="950" y="88" class="h">Dr. Dave's side</text>
+
+  <!-- Row 1: weather that happened -->
+  <rect x="20" y="100" width="250" height="66" rx="10" class="src"/>
+  <text x="32" y="124" class="t b">Iowa State Mesonet</text>
+  <text x="32" y="142" class="t">official airport weather reports</text>
+  <text x="32" y="158" class="m">Bradley Airport (BDL), every hour</text>
+  <rect x="320" y="100" width="260" height="66" rx="10" class="fn"/>
+  <text x="332" y="124" class="w b">:05  scraper-weather-obs</text>
+  <text x="332" y="142" class="w">saves the weather that</text>
+  <text x="332" y="158" class="w">actually happened</text>
+  <rect x="640" y="100" width="260" height="66" rx="10" class="file"/>
+  <text x="652" y="124" class="t b">bdl_weather_obs_master.csv</text>
+  <text x="652" y="142" class="t">real weather, hour by hour</text>
+  <text x="652" y="158" class="m">to retrain on new weeks later</text>
+  <path d="M270,133 L316,133" class="line"/>
+  <path d="M580,133 L636,133" class="line"/>
+
+  <!-- Row 2: weather forecast -->
+  <rect x="20" y="186" width="250" height="66" rx="10" class="src"/>
+  <text x="32" y="210" class="t b">National Weather Service</text>
+  <text x="32" y="228" class="t">hourly forecast, next 24 hours</text>
+  <text x="32" y="244" class="m">forecast.weather.gov, Bradley</text>
+  <rect x="320" y="186" width="260" height="66" rx="10" class="fn"/>
+  <text x="332" y="210" class="w b">:05  scraper-weather-forecast</text>
+  <text x="332" y="228" class="w">saves the weather we</text>
+  <text x="332" y="244" class="w">EXPECT for the next 24 hours</text>
+  <rect x="640" y="186" width="260" height="66" rx="10" class="file"/>
+  <text x="652" y="210" class="t b">bdl_weather_forecast_master.csv</text>
+  <text x="652" y="228" class="t">expected weather, every hour</text>
+  <text x="652" y="244" class="m">your model's weather input</text>
+  <path d="M270,219 L316,219" class="line"/>
+  <path d="M580,219 L636,219" class="line"/>
+
+  <!-- Row 3: ISO New England -->
+  <rect x="20" y="272" width="250" height="96" rx="10" class="src"/>
+  <text x="32" y="296" class="t b">ISO New England</text>
+  <text x="32" y="314" class="t">Connecticut load right now</text>
+  <text x="32" y="330" class="t">+ ISO's own load forecast</text>
+  <text x="32" y="348" class="m">needs your free ISO Express login</text>
+  <text x="32" y="362" class="m">(the two GitHub secrets)</text>
+  <rect x="320" y="272" width="260" height="96" rx="10" class="fn"/>
+  <text x="332" y="296" class="w b">:15  scraper-isone</text>
+  <text x="332" y="314" class="w">saves how much electricity</text>
+  <text x="332" y="330" class="w">Connecticut used each hour,</text>
+  <text x="332" y="346" class="w">and what ISO predicted</text>
+  <rect x="640" y="272" width="260" height="44" rx="10" class="file"/>
+  <text x="652" y="291" class="t b">ct_load_5min_hourly_master.csv</text>
+  <text x="652" y="308" class="m">real load: an input AND the answer key</text>
+  <rect x="640" y="324" width="260" height="44" rx="10" class="file"/>
+  <text x="652" y="343" class="t b">isone_ct_forecast_master.csv</text>
+  <text x="652" y="360" class="m">the professionals' forecast, to compare</text>
+  <path d="M270,320 L316,320" class="line"/>
+  <path d="M580,300 L636,294" class="line"/>
+  <path d="M580,340 L636,346" class="line"/>
+
+  <!-- Row 4: forecast-24h -->
+  <rect x="320" y="420" width="260" height="80" rx="10" class="fn"/>
+  <text x="332" y="444" class="w b">:20  forecast-24h</text>
+  <text x="332" y="462" class="w">YOUR model forecasts the next</text>
+  <text x="332" y="478" class="w">24 hours of Connecticut load</text>
+  <text x="332" y="494" class="w">(Lab 6: low, expected, high)</text>
+  <rect x="640" y="420" width="260" height="80" rx="10" class="file"/>
+  <text x="652" y="444" class="t b">forecasts/latest.csv</text>
+  <text x="652" y="462" class="t">+ forecasts_master.csv</text>
+  <text x="652" y="480" class="m">your newest 24 hours, and every</text>
+  <text x="652" y="494" class="m">forecast you ever made</text>
+  <path d="M580,460 L636,460" class="line"/>
+  <!-- reads (blue dashed) -->
+  <path d="M640,240 L612,240 L612,436 L584,436" class="read"/>
+  <path d="M640,300 L612,300" stroke="#1f6feb" stroke-width="1.6" fill="none" stroke-dasharray="6 4"/>
+  <path d="M700,560 L700,528 L450,528 L450,504" class="read"/>
+  <text x="20" y="512" class="m" fill="#1f6feb">blue dashed = what forecast-24h reads</text>
+
+  <!-- Row 5: once, by hand -->
+  <text x="20" y="540" class="h">Once, by hand (Lab 5 tonight)</text>
+  <rect x="20" y="552" width="250" height="96" rx="10" class="once"/>
+  <text x="32" y="576" class="t b">Dr. Dave's history file</text>
+  <text x="32" y="594" class="t">33,215 hours, Jan 2023 to Oct 2026</text>
+  <text x="32" y="610" class="t">Bradley weather + CT load</text>
+  <text x="32" y="628" class="m">bdl_ct_load_hourly_2023_2026.csv</text>
+  <text x="32" y="642" class="m">(in the course notebooks repo)</text>
+  <rect x="320" y="552" width="260" height="96" rx="10" class="once"/>
+  <text x="332" y="576" class="t b">Lab 5 notebook in Colab</text>
+  <text x="332" y="594" class="t">look, build features, beat the</text>
+  <text x="332" y="610" class="t">baselines, tune, pick a champion</text>
+  <text x="332" y="628" class="m">Part 7 uploads it to your bucket</text>
+  <rect x="640" y="560" width="260" height="80" rx="10" class="file"/>
+  <text x="652" y="584" class="t b">models/model.joblib</text>
+  <text x="652" y="602" class="t">+ model_card.json</text>
+  <text x="652" y="620" class="m">your live model (Lab 6 adds</text>
+  <text x="652" y="634" class="m">its low/high range to the card)</text>
+  <path d="M270,600 L316,600" class="line"/>
+  <path d="M580,600 L636,600" class="line"/>
+
+  <!-- Dr. Dave's side -->
+  <rect x="950" y="272" width="230" height="96" rx="10" class="dave"/>
+  <text x="962" y="296" class="t b">:35  Dr. Dave's collector</text>
+  <text x="962" y="314" class="t">copies every shared bucket's</text>
+  <text x="962" y="330" class="t">forecasts (Lab 5 Part 7e)</text>
+  <text x="962" y="348" class="m">frozen once collected: no edits</text>
+  <rect x="950" y="420" width="230" height="80" rx="10" class="dave"/>
+  <text x="962" y="444" class="t b">Class leaderboard</text>
+  <text x="962" y="462" class="t">scores every forecast hour</text>
+  <text x="962" y="478" class="t">against the real load</text>
+  <text x="962" y="494" class="m">nicknames only, every hour</text>
+  <path d="M900,460 C930,440 925,370 950,345" class="line"/>
+  <path d="M1065,368 L1065,416" class="line"/>
+
+  <!-- footer -->
+  <text x="950" y="560" class="h">Why each piece?</text>
+  <text x="950" y="582" class="t">Weather forecast: the model's</text>
+  <text x="950" y="598" class="t">main input for tomorrow.</text>
+  <text x="950" y="620" class="t">Live load: yesterday's load is an</text>
+  <text x="950" y="636" class="t">input, and today's is the score.</text>
+  <text x="950" y="658" class="t">Real weather: grows your own</text>
+  <text x="950" y="674" class="t">data for retraining later.</text>
+  <text x="20" y="700" class="m">All times are minutes past each hour. Everything lives in your own Google Cloud project; Dr. Dave can only read your bucket after you share it.</text>
+</svg>
