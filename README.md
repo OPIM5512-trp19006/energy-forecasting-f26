@@ -8,7 +8,10 @@ onward). Every student forks this repo into their **own** energy project on Goog
 
 ![What runs in your energy project](how_it_works.svg)
 
-Train once in Colab on Dr. Dave's history file (Bradley weather + Connecticut load, January 2023 to October 2026), upload the model, and from then on four Cloud Functions in your own project run every hour without you.
+Train once in Colab on Dr. Dave's history file (Bradley weather + Connecticut load, January 2023 to October 2026), upload the model, and from then on four Cloud Functions in your own project run every hour without you. Three are
+essential: `forecast-24h` is your model, `scraper-weather-forecast` gives it tomorrow's weather, and `scraper-isone` gives
+it yesterday's load (`load_yesterday_mw` is one of the 11 features). `scraper-weather-obs` is optional: nothing in
+production reads it, but it grows a record of real weather if you want to retrain on new weeks later.
 
 ## What runs every hour (Eastern time)
 
