@@ -129,7 +129,7 @@
   <rect x="20" y="560" width="250" height="96" rx="10" class="once"/>
   <text x="32" y="584" class="t b">Dr. Dave's history file</text>
   <text x="32" y="602" class="t">33,215 hours, Jan 2023 to Oct 2026</text>
-  <text x="32" y="618" class="t">Bradley weather + CT load</text>
+  <text x="32" y="618" class="t">Bradley Airport ONLY + CT load</text>
   <text x="32" y="636" class="m">bdl_ct_load_hourly_2023_2026.csv</text>
   <text x="32" y="650" class="m">(OPIM5512-notebooks, Module4/data)</text>
   <rect x="320" y="560" width="260" height="96" rx="10" class="once"/>

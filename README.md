@@ -13,6 +13,11 @@ essential: `forecast-24h` is your model, `scraper-weather-forecast` gives it tom
 it yesterday's load (`load_yesterday_mw` is one of the 11 features). `scraper-weather-obs` is optional: nothing in
 production reads it, but it grows a record of real weather if you want to retrain on new weeks later.
 
+**Weather comes from one airport, Bradley (BDL)**, both in the history file and in production. Adding more airport
+stations (other Connecticut airports, or nearby New York, Massachusetts and Rhode Island) is optional and a
+final-project-sized change: you need their history from the Iowa State Mesonet for training **and** their forecasts
+every hour in production. See [the training data README](https://github.com/drdave-teaching/OPIM5512-notebooks/blob/main/Module4/data/README.md).
+
 ## What runs every hour (Eastern time)
 
 | Minute | Cloud Function | Source | Writes to `gs://<bucket>/energy/` |
