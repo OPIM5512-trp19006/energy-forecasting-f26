@@ -9,10 +9,6 @@
 #   4. adds a low and high value (an 80% range: 10th and 90th percentiles) if your model card says how (Lab 6):
 #        "range_method": "quantile_models"  -> two more models, energy/models/model_low.joblib and model_high.joblib
 #        "range_method": "offsets_by_hour"  -> "range_offsets_mw": {"low": [24 MW], "high": [24 MW]}, by Connecticut hour
-#        "range_method": "hrrr_qrf_pooled"  -> Lab 6C: energy/models/model_qrf.joblib (a quantile forest) on EVERY recent HRRR
-#                                              run that covers each hour (weather uncertainty), pooled into one low,
-#                                              expected and high. HRRR runs come from Dr. Dave's class file (HRRR_RUNS_URL);
-#                                              if it is missing or stale, the NWS forecast is used instead
 #        no "range_method" (Lab 5)          -> expected value only (the low and high columns stay empty)
 #   5. writes 24 rows (target_hour_utc, predicted_low_mw, predicted_load_mw, predicted_high_mw, ...):
 #        gs://<bucket>/energy/forecasts/latest.csv                       <- replaced every hour (Lab 6 reads this one)
@@ -43,13 +39,6 @@ MODEL_KEY = f"{ENERGY_PREFIX}/models/model.joblib"
 CARD_KEY = f"{ENERGY_PREFIX}/models/model_card.json"
 LOW_MODEL_KEY = f"{ENERGY_PREFIX}/models/model_low.joblib"
 HIGH_MODEL_KEY = f"{ENERGY_PREFIX}/models/model_high.joblib"
-QRF_MODEL_KEY = f"{ENERGY_PREFIX}/models/model_qrf.joblib"
-# Lab 6C: the class HRRR file, rewritten every hour at :05 by Dr. Dave's hrrr-bdl job (8 newest runs, 0-48 hours ahead)
-HRRR_RUNS_URL = os.getenv("HRRR_RUNS_URL", "https://storage.googleapis.com/opim5512-leaderboard-f26/weather/bdl_hrrr_runs.csv")
-HRRR_MAX_AGE_HOURS = 14        # newest run older than this = something is wrong upstream: use the NWS forecast instead
-# 20 percentiles, each the middle of a 5% slice of the chances (2.5%, 7.5%, ..., 97.5%), same as the Lab 6C notebook
-POOL_QUANTILES = [0.025, 0.075, 0.125, 0.175, 0.225, 0.275, 0.325, 0.375, 0.425, 0.475, 0.525, 0.575, 0.625, 0.675, 0.725,
-                  0.775, 0.825, 0.875, 0.925, 0.975]
 WEATHER_KEY = f"{ENERGY_PREFIX}/datasets/bdl_weather_forecast_master.csv"
 LOAD_KEY = f"{ENERGY_PREFIX}/datasets/ct_load_5min_hourly_master.csv"
 LATEST_KEY = f"{ENERGY_PREFIX}/forecasts/latest.csv"
@@ -59,11 +48,33 @@ MASTER_KEY = f"{ENERGY_PREFIX}/datasets/forecasts_master.csv"
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 
 # ----------------------------------------------------------------------------------------------------------------
-# make_features: copied word for word from the Lab 5 notebook (Part 3). Change it there, change it here.
+# make_features: copied word for word from my Lab 5 notebook (Solar-Aware upgrade). Change it there, change it here.
 # ----------------------------------------------------------------------------------------------------------------
 WEATHER = ["temp_f", "dewpoint_f", "rel_humidity_pct", "wind_speed_mph", "cloud_cover_pct"]
 CALENDAR = ["hour", "day_of_week", "month", "is_weekend", "is_holiday"]
-FEATURES = CALENDAR + WEATHER + ["load_yesterday_mw"]
+LOADS = ["load_yesterday_mw", "load_last_week_mw"]
+SUN = ["sun_height", "sunshine"]
+FEATURES = CALENDAR + WEATHER + LOADS + SUN                    # 14 columns, in the order the model expects
+
+BDL_LAT, BDL_LON = 41.94, -72.68                               # Bradley Airport
+
+
+def sun_height(hours_utc):
+    """How high the sun is over Bradley in the middle of each hour: 0 = below the horizon, 1 = straight overhead.
+    Pure astronomy (NOAA's solar position formulas), so production knows it for any future hour."""
+    mid = pd.DatetimeIndex(hours_utc).tz_convert("UTC") + pd.Timedelta(minutes=30)
+    day = mid.dayofyear.values
+    hour = mid.hour.values + mid.minute.values / 60
+    g = 2 * np.pi / 365 * (day - 1 + (hour - 12) / 24)         # where Earth is in its orbit (radians)
+    declination = (0.006918 - 0.399912 * np.cos(g) + 0.070257 * np.sin(g) - 0.006758 * np.cos(2 * g)
+                   + 0.000907 * np.sin(2 * g) - 0.002697 * np.cos(3 * g) + 0.00148 * np.sin(3 * g))
+    equation_of_time = 229.18 * (0.000075 + 0.001868 * np.cos(g) - 0.032077 * np.sin(g)
+                                 - 0.014615 * np.cos(2 * g) - 0.040849 * np.sin(2 * g))
+    solar_minutes = hour * 60 + equation_of_time + 4 * BDL_LON  # minutes past solar midnight at Bradley
+    hour_angle = np.radians(solar_minutes / 4 - 180)
+    lat = np.radians(BDL_LAT)
+    sin_height = np.sin(lat) * np.sin(declination) + np.cos(lat) * np.cos(declination) * np.cos(hour_angle)
+    return np.clip(sin_height, 0, None)
 
 
 def make_features(hours_utc, weather, load):
@@ -88,6 +99,12 @@ def make_features(hours_utc, weather, load):
     yesterday = load.reindex(hours_utc - pd.Timedelta(hours=24)).values
     hour_before = load.reindex(hours_utc - pd.Timedelta(hours=25)).values
     out["load_yesterday_mw"] = np.where(np.isnan(yesterday), hour_before, yesterday)
+    # Same hour last week (168 hours earlier): always over for all 24 forecast hours
+    out["load_last_week_mw"] = load.reindex(hours_utc - pd.Timedelta(hours=168)).values
+
+    # Rooftop solar: a high sun and clear skies hide load from the grid (Part 6b's midday misses)
+    out["sun_height"] = sun_height(hours_utc)
+    out["sunshine"] = out["sun_height"] * (1 - out["cloud_cover_pct"] / 100)
     return out[FEATURES]
 # ----------------------------------------------------------------------------------------------------------------
 
@@ -117,8 +134,8 @@ def forecast_range(bucket, card, X, preds, targets):
             raise ValueError("Your model card says quantile_models, but model_low.joblib or model_high.joblib is missing.")
         low_model = joblib.load(io.BytesIO(bucket.blob(LOW_MODEL_KEY).download_as_bytes()))
         high_model = joblib.load(io.BytesIO(bucket.blob(HIGH_MODEL_KEY).download_as_bytes()))
-        low = low_model.predict(X[FEATURES])
-        high = high_model.predict(X[FEATURES])
+        low = low_model.predict(X[list(low_model.feature_names_in_)])
+        high = high_model.predict(X[list(high_model.feature_names_in_)])
     elif method == "offsets_by_hour":
         offsets = card["range_offsets_mw"]
         if len(offsets["low"]) != 24 or len(offsets["high"]) != 24:
@@ -138,86 +155,6 @@ def forecast_range(bucket, card, X, preds, targets):
     low = np.minimum(low, preds)
     high = np.maximum(high, preds)
     return low, high, method
-
-
-def fill_inputs(X, load):
-    """Honest gap filling (rare): a missing weather value takes its neighbor; a missing yesterday load the newest load."""
-    X[WEATHER] = X[WEATHER].interpolate(limit_direction="both")
-    X["load_yesterday_mw"] = X["load_yesterday_mw"].fillna(float(load.iloc[-1]))
-    return X
-
-
-def hrrr_run_tables(card, now):
-    """The recent HRRR runs from the class file, newest last: a list of weather tables indexed by UTC hour.
-    Returns an empty list when the file is missing or stale."""
-    try:
-        runs = pd.read_csv(HRRR_RUNS_URL)
-    except Exception as err:
-        logging.warning("HRRR runs not available: %s", err)
-        return []
-    runs["init_utc"] = pd.to_datetime(runs["init_utc"], utc=True)
-    runs["hour_utc"] = pd.to_datetime(runs["hour_utc"], utc=True)
-    inits = sorted(runs["init_utc"].unique())
-    if len(inits) == 0 or pd.Timestamp(now) - pd.Timestamp(inits[-1]) > pd.Timedelta(hours=HRRR_MAX_AGE_HOURS):
-        return []
-    n_runs = int(card.get("hrrr_runs", 8))
-    tables = []
-    for init in inits[-n_runs:]:
-        tables.append(runs[runs["init_utc"] == init].set_index("hour_utc")[WEATHER])
-    return tables
-
-
-def pooled_range(bucket, card, targets, load, nws_weather, now):
-    """Lab 6C: the quantile forest's 20 percentiles (2.5%, 7.5%, ..., 97.5%) for every HRRR run that covers an hour, pooled
-    into one pile per hour; low, expected and high are the 10th, 50th and 90th percentile of the pile ("hazen": each
-    value is the middle of its 5% slice, so a single run gives back exactly its own 10th, 50th and 90th).
-    The model's uncertainty is inside each run's percentiles; the weather's is in how much the runs disagree.
-    Returns (low, expected, high, info)."""
-    if not bucket.blob(QRF_MODEL_KEY).exists():
-        raise ValueError("Your model card says hrrr_qrf_pooled, but energy/models/model_qrf.joblib is missing.")
-    qrf = joblib.load(io.BytesIO(bucket.blob(QRF_MODEL_KEY).download_as_bytes()))
-    tables = hrrr_run_tables(card, now)
-    weather_source = "hrrr"
-    if len(tables) == 0:
-        tables = [nws_weather]
-        weather_source = "nws_fallback"
-    piles = []
-    for i in range(len(targets)):
-        piles.append([])
-    for table in tables:
-        covered = np.asarray(targets.isin(table.index))
-        if not covered.any():
-            continue
-        X = fill_inputs(make_features(targets[covered], table, load), load)
-        if X[WEATHER].isna().any().any():
-            continue
-        q = qrf.predict(X[FEATURES], quantiles=POOL_QUANTILES)
-        positions = np.where(covered)[0]
-        for j in range(len(positions)):
-            piles[positions[j]].extend(q[j])
-    # an hour no HRRR run covers (should not happen) gets the NWS forecast
-    empty = []
-    for i in range(len(targets)):
-        if len(piles[i]) == 0:
-            empty.append(i)
-    if len(empty) > 0:
-        X = fill_inputs(make_features(targets[empty], nws_weather, load), load)
-        q = qrf.predict(X[FEATURES], quantiles=POOL_QUANTILES)
-        for j in range(len(empty)):
-            piles[empty[j]].extend(q[j])
-    low = np.zeros(len(targets))
-    expected = np.zeros(len(targets))
-    high = np.zeros(len(targets))
-    runs_per_hour = []
-    for i in range(len(targets)):
-        low[i], expected[i], high[i] = np.quantile(piles[i], [0.1, 0.5, 0.9], method="hazen")
-        runs_per_hour.append(len(piles[i]) // len(POOL_QUANTILES))
-    widen = float(card.get("range_widen", 1.0))
-    low = expected - widen * (expected - low)
-    high = expected + widen * (high - expected)
-    info = {"weather_source": weather_source, "hrrr_runs_read": len(tables) if weather_source == "hrrr" else 0,
-            "runs_per_hour_min": int(min(runs_per_hour)), "runs_per_hour_max": int(max(runs_per_hour))}
-    return low, expected, high, info
 
 
 def run_once(dry_run: bool = False) -> dict:
@@ -249,23 +186,17 @@ def run_once(dry_run: bool = False) -> dict:
     # Honest gap filling (rare): a missing weather value takes its neighbor; a missing yesterday load takes the newest load
     filled_weather = int(X[WEATHER].isna().sum().sum())
     X[WEATHER] = X[WEATHER].interpolate(limit_direction="both")
-    filled_load = int(X["load_yesterday_mw"].isna().sum())
+    X["sunshine"] = X["sun_height"] * (1 - X["cloud_cover_pct"] / 100)   # redo with any filled cloud cover
+    filled_load = int(X["load_yesterday_mw"].isna().sum()) + int(X["load_last_week_mw"].isna().sum())
     X["load_yesterday_mw"] = X["load_yesterday_mw"].fillna(float(load.iloc[-1]))
+    X["load_last_week_mw"] = X["load_last_week_mw"].fillna(X["load_yesterday_mw"])   # no week of load yet: use yesterday
     if X[WEATHER].isna().any().any():
         return {"status": "no_weather_data", "message": "The weather forecast does not cover the next 24 hours yet."}
 
-    preds = model.predict(X[FEATURES])
+    preds = model.predict(X[list(model.feature_names_in_)])   # whatever columns the live model was trained on
     range_error = ""
-    pool_info = {}
     try:                         # a broken range never costs you your expected-value forecast
-        if str(card.get("range_method", "none")) == "hrrr_qrf_pooled":
-            low, pooled_expected, high, pool_info = pooled_range(bucket, card, targets, load, weather, now)
-            preds = pooled_expected            # the expected value is the middle of the pooled pile
-            range_method = "hrrr_qrf_pooled"
-            if pool_info["weather_source"] != "hrrr":
-                range_method = "hrrr_qrf_pooled_nws"
-        else:
-            low, high, range_method = forecast_range(bucket, card, X, preds, targets)
+        low, high, range_method = forecast_range(bucket, card, X, preds, targets)
     except Exception as err:
         low, high, range_method = None, None, "error"
         range_error = str(err)[:300]
@@ -287,7 +218,6 @@ def run_once(dry_run: bool = False) -> dict:
                "avg_range_width_mw": None if low is None or np.isnan(low).all() else round(float(np.mean(high - low)), 1),
                "range_error": range_error,
                "filled_weather_values": filled_weather, "filled_load_values": filled_load}
-    summary.update(pool_info)
     if dry_run:
         summary["dry_run"] = True
         return summary
