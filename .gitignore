@@ -1,3 +1,8 @@
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+
+# Streamlit dashboard: your service account key lives here locally, never in GitHub
+.streamlit/secrets.toml
+dashboard/.streamlit/secrets.toml
+*-key.json

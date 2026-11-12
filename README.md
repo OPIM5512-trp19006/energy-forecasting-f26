@@ -71,6 +71,37 @@ Every forecast hour can carry an **80% range**: `predicted_low_mw` (10th percent
 leaderboard shows is too narrow without retraining. The expected value always stays inside its range, and a broken range
 never stops the expected-value forecast (the run reports `"range_method": "error"` and why).
 
+## Optional: your own public dashboard (no points)
+[`dashboard/`](dashboard/) is a starter [Streamlit](https://streamlit.io) app that reads your bucket and shows your next 24 hours,
+your past forecasts against the real load, and your score (same rules as the class leaderboard). Run it in Cloud Shell in
+5 minutes, or put it on the internet for free with Streamlit Community Cloud. See [dashboard/README.md](dashboard/README.md).
+
+## OPIM 5509: a deep learning model instead (`forecast-24h-dl`)
+OPIM 5509 students ship an LSTM instead of a scikit-learn model. Set up the energy project the same way, then deploy
+**`forecast-24h-dl`**: add one more repository variable, `COURSE` = `5509`, then Actions → "Deploy forecast-24h-dl" →
+Run workflow (it never runs on a push, and without `COURSE` = `5509` it stops before touching anything) and train in the
+final project notebooks ([FP1, a basic LSTM](https://github.com/drdave-teaching/OPIM5509-notebooks/blob/main/FinalProject/FP1_Basic_LSTM_Forecast.ipynb),
+then [FP2, an LSTM that gives a range](https://github.com/drdave-teaching/OPIM5509-notebooks/blob/main/FinalProject/FP2_Probabilistic_LSTM.ipynb)).
+It writes the same forecast files as `forecast-24h`, so deploy one or the other: the DL workflow pauses
+`forecast-24h-hourly` if it finds it.
+
+Every hour it loads `models/model.keras` and `models/model_card.json`, builds the two inputs with the notebooks'
+`make_inputs` (the last 168 hours of live load, and the next 24 hours of weather and calendar), and reads the weather from
+the newest HRRR runs in Dr. Dave's class file that reach a full day ahead (the NWS forecast if that file is missing or
+stale). The card's `range_method` picks the range:
+
+| `"range_method"` | Model | Low, expected and high |
+|---|---|---|
+| `"none"` | FP1 (one number per hour) | expected value only, newest weather run |
+| `"lstm_hrrr_runs"` | FP1 or FP2 | the 10th, 50th and 90th percentile of the forecasts made with each of the newest `hrrr_runs` runs (default 3) |
+| `"lstm_quantiles"` | FP2 (20 percentiles per hour) | the model's own 10th, 50th and 90th percentiles, newest weather run |
+| `"lstm_quantiles_pooled"` | FP2 | every run's 20 percentiles pooled into one pile per hour |
+
+`"range_widen"` works as above. When the NWS fallback is used, `range_method` gets `_nws` added to it.
+
+Every run also writes `forecasts/run_summary.json`: the function's name, the Keras version and your network's layers.
+The OPIM 5509 leaderboard reads it and only scores forecasts made by `forecast-24h-dl` with a Keras network.
+
 ## Data credits
 Weather: Iowa State Mesonet (mesonet.agron.iastate.edu) and the National Weather Service. Load and forecasts: ISO New
 England (iso-ne.com, ISO Express web services). Each student uses their own ISO Express account.
