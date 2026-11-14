@@ -290,8 +290,7 @@ def run_once(dry_run: bool = False) -> dict:
     try:                         # a broken range never costs you your expected-value forecast
         if str(card.get("range_method", "none")) == "hrrr_qrf_pooled":
             low, pooled_expected, high, pool_info = pooled_range(bucket, card, targets, load, weather, now)
-            low = low + (preds - pooled_expected)     # keep my Solar-Aware forecast as the expected value
-            high = high + (preds - pooled_expected)   # and center the pooled range on it
+            preds = pooled_expected            # the expected value is the middle of the pooled pile
             range_method = "hrrr_qrf_pooled"
             if pool_info["weather_source"] != "hrrr":
                 range_method = "hrrr_qrf_pooled_nws"
