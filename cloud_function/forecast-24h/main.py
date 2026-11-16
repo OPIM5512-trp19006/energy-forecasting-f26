@@ -302,6 +302,10 @@ def run_once(dry_run: bool = False) -> dict:
     if low is None:
         low = np.full(len(preds), np.nan)
         high = np.full(len(preds), np.nan)
+    bias = float(card.get("bias_mw", 0.0))   # measured low bias: nudge low, expected and high up by this many MW
+    preds = preds + bias
+    low = low + bias
+    high = high + bias
     out = pd.DataFrame({"issued_at_utc": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
                         "target_hour_utc": targets.strftime("%Y-%m-%dT%H:%M:%SZ"),
                         "lead_hours": np.arange(1, HOURS_AHEAD + 1),
